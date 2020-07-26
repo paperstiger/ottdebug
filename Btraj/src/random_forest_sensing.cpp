@@ -132,7 +132,7 @@ void rcvOdometryCallbck(const nav_msgs::Odometry odom)
 {
       if (odom.child_frame_id == "X" || odom.child_frame_id == "O") return ;
       _has_odom = true;
-
+      // ROS_WARN("RANDOM_FOREST receive odometry");
       _state = {
          odom.pose.pose.position.x, 
          odom.pose.pose.position.y, 
@@ -146,7 +146,17 @@ void rcvOdometryCallbck(const nav_msgs::Odometry odom)
 
 int i = 0;
 void pubSensedPoints()
-{     
+{ 
+
+   /* Modification by Gao so the map is never changed */
+   pcl::toROSMsg(cloudMap, globalMap_pcd);
+   globalMap_pcd.header.frame_id = "world";
+   _all_map_pub.publish(globalMap_pcd);
+
+   _local_map_pub.publish(globalMap_pcd);
+   return;
+   /* Modification by Gao so the map is never changed */
+
       if(i < 10 )
       {
          pcl::toROSMsg(cloudMap, globalMap_pcd);

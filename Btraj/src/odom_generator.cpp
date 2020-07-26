@@ -27,6 +27,20 @@ void rcvPosCmdCallBack(const quadrotor_msgs::PositionCommand cmd)
 	_cmd    = cmd;
 }
 
+
+void rcvStartCallback(const geometry_msgs::PoseStamped & msg)
+{    
+
+    ROS_WARN("[Odom Generator] arbitraily change the start");
+
+    rcv_cmd = true;
+    _cmd.position.x = msg.pose.position.x;
+    _cmd.position.y = msg.pose.position.y;
+    _cmd.position.z = msg.pose.position.z;
+
+}
+
+
 void pubOdom()
 {	
 	nav_msgs::Odometry odom;
@@ -74,8 +88,14 @@ int main (int argc, char** argv)
     nh.param("init_y", _init_y,  0.0);
     nh.param("init_z", _init_z,  0.0);
 
+	/* Modify by Gao to arbitrarily change start*/
+    ros::Subscriber _start_sub = nh.subscribe("/start", 1, rcvStartCallback);
+
     _cmd_sub  = nh.subscribe( "command", 1, rcvPosCmdCallBack );
-    _odom_pub = nh.advertise<nav_msgs::Odometry>("odometry", 1);                      
+    _odom_pub = nh.advertise<nav_msgs::Odometry>("odometry", 1);
+
+    
+
 
     ros::Rate rate(100);
     bool status = ros::ok();

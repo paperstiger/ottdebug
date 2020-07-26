@@ -266,6 +266,8 @@ Visualization Manager:
     - Class: rviz/FocusCamera
     - Class: rviz_plugins/Goal3DTool
       Topic: goal
+    - Class: rviz_plugins/Start3DTool
+      Topic: start
   Value: true
   Views:
     Current:

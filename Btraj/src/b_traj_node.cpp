@@ -67,7 +67,7 @@ int _traj_id = 1;
 COLLISION_CELL _free_cell(0.0);
 COLLISION_CELL _obst_cell(1.0);
 // ros related
-ros::Subscriber _map_sub, _pts_sub, _odom_sub;
+ros::Subscriber _map_sub, _pts_sub, _odom_sub, _start_sub;
 ros::Publisher _fm_path_vis_pub, _local_map_vis_pub, _inf_map_vis_pub, _corridor_vis_pub, _traj_vis_pub, _grid_path_vis_pub, _nodes_vis_pub, _traj_pub, _checkTraj_vis_pub, _stopTraj_vis_pub;
 
 // trajectory related
@@ -164,8 +164,22 @@ void rcvWaypointsCallback(const nav_msgs::Path & wp)
     trajPlanning(); 
 }
 
+void rcvStartCallback(const geometry_msgs::PoseStamped & msg)
+{    
+
+    ROS_WARN("[Fast Marching Node] receive the start-points");
+
+    //geometry_msgs::PoseStamped pt = *msg;
+    //_start_pt << pt.pose.position.x,
+    //             pt.pose.position.y,
+    //             pt.pose.position.z;
+
+    ROS_WARN("[Fast Marching Node] start point updated");
+    //trajPlanning(); 
+}
+
 Vector3d _local_origin;
-void rcvPointCloudCallBack(const sensor_msgs::PointCloud2 & pointcloud_map)
+void rcvPointCloudCallBackInit(const sensor_msgs::PointCloud2 & pointcloud_map)
 {   
     pcl::PointCloud<pcl::PointXYZ> cloud;
     pcl::fromROSMsg(pointcloud_map, cloud);
@@ -239,10 +253,97 @@ void rcvPointCloudCallBack(const sensor_msgs::PointCloud2 & pointcloud_map)
     _local_map_vis_pub.publish(localMap);
 
     ros::Time time_3 = ros::Time::now();
-    //ROS_WARN("Time in receving the map is %f", (time_3 - time_1).toSec());
+    ROS_WARN("Time in receving the map is %f", (time_3 - time_1).toSec());
 
-    if( checkExecTraj() == true )
-        trajPlanning(); 
+    checkExecTraj();
+    //if( checkExecTraj() == true )
+    //    trajPlanning(); 
+}
+
+void rcvPointCloudCallBack(const sensor_msgs::PointCloud2 & pointcloud_map)
+{   
+    static bool inited = false;
+    pcl::PointCloud<pcl::PointXYZ> cloud;
+    pcl::fromROSMsg(pointcloud_map, cloud);
+    
+    if((int)cloud.points.size() == 0)
+        return;
+
+    if(!inited) {
+        rcvPointCloudCallBackInit(pointcloud_map);
+        inited = true;
+    }
+    
+
+    ros::Time time_1 = ros::Time::now();
+    collision_map->RestMap();
+    
+    double local_c_x = (int)((_start_pt(0) - _x_local_size/2.0)  * _inv_resolution + 0.5) * _resolution;
+    double local_c_y = (int)((_start_pt(1) - _y_local_size/2.0)  * _inv_resolution + 0.5) * _resolution;
+    double local_c_z = (int)((_start_pt(2) - _z_local_size/2.0)  * _inv_resolution + 0.5) * _resolution;
+
+    _local_origin << local_c_x, local_c_y, local_c_z;
+
+    Translation3d origin_local_translation( _local_origin(0), _local_origin(1), _local_origin(2));
+    Quaterniond origin_local_rotation(1.0, 0.0, 0.0, 0.0);
+
+    Affine3d origin_local_transform = origin_local_translation * origin_local_rotation;
+    
+    double _buffer_size = 2 * _MAX_Vel;
+    double _x_buffer_size = _x_local_size + _buffer_size;
+    double _y_buffer_size = _y_local_size + _buffer_size;
+    double _z_buffer_size = _z_local_size + _buffer_size;
+
+    collision_map_local = new CollisionMapGrid(origin_local_transform, "world", _resolution, _x_buffer_size, _y_buffer_size, _z_buffer_size, _free_cell);
+
+    vector<pcl::PointXYZ> inflatePts(20);
+    pcl::PointCloud<pcl::PointXYZ> cloud_inflation;
+    pcl::PointCloud<pcl::PointXYZ> cloud_local;
+
+    for (int idx = 0; idx < (int)cloud.points.size(); idx++)
+    {   
+        auto mk = cloud.points[idx];
+        pcl::PointXYZ pt(mk.x, mk.y, mk.z);
+
+        if( fabs(pt.x - _start_pt(0)) > _x_local_size / 2.0 || fabs(pt.y - _start_pt(1)) > _y_local_size / 2.0 || fabs(pt.z - _start_pt(2)) > _z_local_size / 2.0 )
+            continue; 
+        
+        cloud_local.push_back(pt);
+        inflatePts = pointInflate(pt);
+        for(int i = 0; i < (int)inflatePts.size(); i++)
+        {   
+            pcl::PointXYZ inf_pt = inflatePts[i];
+            Vector3d addPt(inf_pt.x, inf_pt.y, inf_pt.z);
+            collision_map_local->Set3d(addPt, _obst_cell);
+            collision_map->Set3d(addPt, _obst_cell);
+            cloud_inflation.push_back(inf_pt);
+        }
+    }
+    _has_map = true;
+
+    cloud_inflation.width = cloud_inflation.points.size();
+    cloud_inflation.height = 1;
+    cloud_inflation.is_dense = true;
+    cloud_inflation.header.frame_id = "world";
+
+    cloud_local.width = cloud_local.points.size();
+    cloud_local.height = 1;
+    cloud_local.is_dense = true;
+    cloud_local.header.frame_id = "world";
+
+    sensor_msgs::PointCloud2 inflateMap, localMap;
+    
+    pcl::toROSMsg(cloud_inflation, inflateMap);
+    pcl::toROSMsg(cloud_local, localMap);
+    _inf_map_vis_pub.publish(inflateMap);
+    _local_map_vis_pub.publish(localMap);
+
+    ros::Time time_3 = ros::Time::now();
+    ROS_WARN("Time in receving the map is %f", (time_3 - time_1).toSec());
+
+    checkExecTraj();
+    //if( checkExecTraj() == true )
+    //    trajPlanning(); 
 }
 
 vector<pcl::PointXYZ> pointInflate( pcl::PointXYZ pt)
@@ -866,6 +967,8 @@ void trajPlanning()
 
         Vector3d startIdx3d = (_start_pt - _map_origin) * _inv_resolution; 
         Vector3d endIdx3d   = (_end_pt   - _map_origin) * _inv_resolution;
+        ROS_INFO("Init point is {%f %f %f}\n", startIdx3d[0], startIdx3d[1], startIdx3d[2]);
+        ROS_INFO("End point is {%f %f %f}\n", endIdx3d[0], endIdx3d[1], endIdx3d[2]);
 
         Coord3D goal_point = {(unsigned int)startIdx3d[0], (unsigned int)startIdx3d[1], (unsigned int)startIdx3d[2]};
         Coord3D init_point = {(unsigned int)endIdx3d[0],   (unsigned int)endIdx3d[1],   (unsigned int)endIdx3d[2]}; 
@@ -873,6 +976,7 @@ void trajPlanning()
         unsigned int startIdx;
         vector<unsigned int> startIndices;
         grid_fmm.coord2idx(init_point, startIdx);
+
         
         startIndices.push_back(startIdx);
         
@@ -883,6 +987,7 @@ void trajPlanning()
         Solver<FMGrid3D>* fm_solver = new FMMStar<FMGrid3D>("FMM*_Dist", TIME); // LSM, FMM
     
         fm_solver->setEnvironment(&grid_fmm);
+
         fm_solver->setInitialAndGoalPoints(startIndices, goalIdx);
 
         ros::Time time_bef_fm = ros::Time::now();
@@ -1166,6 +1271,7 @@ int main(int argc, char** argv)
     _map_sub  = nh.subscribe( "map",       1, rcvPointCloudCallBack );
     _odom_sub = nh.subscribe( "odometry",  1, rcvOdometryCallbck);
     _pts_sub  = nh.subscribe( "waypoints", 1, rcvWaypointsCallback );
+    //_start_sub = nh.subscribe("start", 1, rcvStartCallback);
 
     _inf_map_vis_pub   = nh.advertise<sensor_msgs::PointCloud2>("vis_map_inflate", 1);
     _local_map_vis_pub = nh.advertise<sensor_msgs::PointCloud2>("vis_map_local", 1);
@@ -1240,6 +1346,7 @@ int main(int argc, char** argv)
 
     Vector3i GLSIZE(_max_x_id, _max_y_id, _max_z_id);
     Vector3i LOSIZE(_max_local_x_id, _max_local_y_id, _max_local_z_id);
+    ROS_INFO("GL size is {%d %d %d} LOSIZE is {%d %d %d}\n", _max_x_id, _max_y_id, _max_z_id, _max_local_x_id, _max_local_y_id, _max_local_z_id);
 
     path_finder = new gridPathFinder(GLSIZE, LOSIZE);
     path_finder->initGridNodeMap(_resolution, _map_origin);

@@ -57,6 +57,7 @@ void Goal3DTool::onInitialize()
 
 void Goal3DTool::updateTopic()
 {
+  ROS_WARN("Entering goal topic set\n");
   pub_ = nh_.advertise<geometry_msgs::PoseStamped>( topic_property_->getStdString(), 1 );
 }
 
@@ -76,7 +77,47 @@ void Goal3DTool::onPoseSet(double x, double y, double z, double theta)
   pub_.publish(goal);
 }
 
+Start3DTool::Start3DTool()
+{
+  shortcut_key_ = 's';
+
+  topic_property_ = new StringProperty( "Topic", "start",
+                                        "The topic on which to publish navigation starts.",
+                                        getPropertyContainer(), SLOT( updateTopic() ), this );
+}
+
+void Start3DTool::onInitialize()
+{
+  Pose3DTool::onInitialize();
+  setName( "3D Nav Start" );
+  updateTopic();
+}
+
+void Start3DTool::updateTopic()
+{
+  //ROS_WARN("Topic name is %s", topic_property_->getStdString()); 
+  ROS_WARN("Entering start topic set\n");
+  pub_ = nh_.advertise<geometry_msgs::PoseStamped>( topic_property_->getStdString(), 1 );
+}
+
+void Start3DTool::onPoseSet(double x, double y, double z, double theta)
+{
+  ROS_WARN("3D Start Set");
+  ROS_WARN("Start is %.3f %.3f %.3f", x, y, z);
+  std::string fixed_frame = context_->getFixedFrame().toStdString();
+  tf::Quaternion quat;
+  quat.setRPY(0.0, 0.0, theta);
+  tf::Stamped<tf::Pose> p = tf::Stamped<tf::Pose>(tf::Pose(quat, tf::Point(x, y, z)), ros::Time::now(), fixed_frame);
+  geometry_msgs::PoseStamped start;
+  tf::poseStampedTFToMsg(p, start);
+  ROS_WARN("Setting start: Frame:%s, Position(%.3f, %.3f, %.3f), Orientation(%.3f, %.3f, %.3f, %.3f) = Angle: %.3f\n", fixed_frame.c_str(),
+      start.pose.position.x, start.pose.position.y, start.pose.position.z,
+      start.pose.orientation.x, start.pose.orientation.y, start.pose.orientation.z, start.pose.orientation.w, theta);
+  pub_.publish(start);
+}
+
 } // end namespace rviz
 
 #include <pluginlib/class_list_macros.h>
 PLUGINLIB_EXPORT_CLASS( rviz::Goal3DTool, rviz::Tool )
+PLUGINLIB_EXPORT_CLASS( rviz::Start3DTool, rviz::Tool )

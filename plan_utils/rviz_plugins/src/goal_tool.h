@@ -65,6 +65,27 @@ private:
   StringProperty* topic_property_;
 };
 
+class Start3DTool: public Pose3DTool
+{
+Q_OBJECT
+public:
+  Start3DTool();
+  virtual ~Start3DTool() {}
+  virtual void onInitialize();
+
+protected:
+  virtual void onPoseSet(double x, double y, double z, double theta);
+
+private Q_SLOTS:
+  void updateTopic();
+
+private:
+  ros::NodeHandle nh_;
+  ros::Publisher pub_;
+
+  StringProperty* topic_property_;
+};
+
 }
 
 #endif

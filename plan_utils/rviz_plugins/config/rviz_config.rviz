@@ -1203,6 +1203,8 @@ Visualization Manager:
     - Class: rviz/MoveCamera
     - Class: rviz_plugins/Goal3DTool
       Topic: goal
+    - Class: rviz_plugins/Start3DTool
+      Topic: start
     - Class: rviz/SetInitialPose
       Topic: trigger
   Value: true
