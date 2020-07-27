@@ -887,6 +887,97 @@ vector<Cube> corridorGeneration(vector<Vector3d> path_coord)
     return cubeList;
 }
 
+/*
+A different way to generate corridors. It restart the generation only for points out of the last cube.
+*/
+vector<Cube> corridorGenerationSmart(vector<Vector3d> path_coord)
+{   
+    vector<Cube> cubeList;
+    Vector3d pt;
+
+    Cube lstcube;
+
+    for (int i = 0; i < (int)path_coord.size(); i += 1)
+    {
+        pt = path_coord[i];
+        ROS_WARN("Path coordinates %f %f %f", pt(0), pt(1), pt(2));
+        if(cubeList.size() > 0) {
+            Cube &tail = cubeList.back();
+            // if point is within the cube
+            bool is_within = true;
+            for(int j = 0; j < 3; j++) {
+                if(pt(j) >= tail.box[j].first && pt(j) <= tail.box[j].second)
+                    continue;
+                is_within = false;
+                break;
+            }
+            if(is_within)
+                continue;
+        }
+
+        Cube cube = generateCube(pt);
+        auto result = inflateCube(cube, lstcube);
+
+        if(result.second == false)
+            continue;
+
+        cube = result.first;
+        
+        lstcube = cube;
+        cubeList.push_back(cube);
+    }
+    return cubeList;
+}
+
+
+vector<Cube> corridorGenerationSmart(vector<Vector3d> path_coord, vector<double> time)
+{   
+    vector<Cube> cubeList;
+    Vector3d pt;
+
+    Cube lstcube;
+    double accumt = 0;
+    //for(int i = 0; i < time.size() - 1; i++)
+    //    time[i] = time[i] - time[i + 1];
+
+    for (int i = 0; i < (int)path_coord.size(); i += 1)
+    {
+        pt = path_coord[i];
+        accumt += time[i];
+        ROS_WARN("Path coordinates %f %f %f time %f", pt(0), pt(1), pt(2), time[i]);
+        if(cubeList.size() > 0) {
+            Cube &tail = cubeList.back();
+            // if point is within the cube
+            bool is_within = true;
+            for(int j = 0; j < 3; j++) {
+                if(pt(j) >= tail.box[j].first && pt(j) <= tail.box[j].second)
+                    continue;
+                is_within = false;
+                cubeList.back().t = time[i - 1];
+                //ROS_WARN("Time input is %f", cubeList.back().t);
+                break;
+            }
+            if(is_within)
+                continue;
+        }
+
+        Cube cube = generateCube(pt);
+        auto result = inflateCube(cube, lstcube);
+
+        if(result.second == false)
+            continue;
+
+        cube = result.first;
+        
+        lstcube = cube;
+        // cube.t = time[i];
+        cubeList.push_back(cube);
+    }
+    cubeList.back().t = time.back();
+    ROS_WARN("Time input is %f", cubeList.back().t);
+    return cubeList;
+}
+
 double velMapping(double d, double max_v)
 {   
     double vel;
@@ -901,6 +992,12 @@ double velMapping(double d, double max_v)
         vel = 1.0;
 
     return vel * max_v;
+}
+
+void print_path(const vector<Vector3d> &path) {
+    for(int i = 0; i < path.size(); i++) {
+        ROS_WARN("%f %f %f", path[i](0), path[i](1), path[i](2));
+    }
 }
 
 void trajPlanning()
@@ -1037,13 +1134,12 @@ void trajPlanning()
 
         ros::Time time_bef_corridor = ros::Time::now();    
         sortPath(path_coord, time);
-        corridor = corridorGeneration(path_coord, time);
+        corridor = corridorGenerationSmart(path_coord, time);
         ros::Time time_aft_corridor = ros::Time::now();
         ROS_WARN("Time consume in corridor generation is %f", (time_aft_corridor - time_bef_corridor).toSec());
 
         timeAllocation(corridor, time);
         visCorridor(corridor);
-
         delete fm_solver;
     }
     else
@@ -1058,13 +1154,21 @@ void trajPlanning()
         visExpNode(searchedNodes);
 
         ros::Time time_bef_corridor = ros::Time::now();    
-        corridor = corridorGeneration(gridPath);
+        corridor = corridorGenerationSmart(gridPath);
         ros::Time time_aft_corridor = ros::Time::now();
         ROS_WARN("Time consume in corridor generation is %f", (time_aft_corridor - time_bef_corridor).toSec());
-
         timeAllocation(corridor);
         visCorridor(corridor);
     }
+
+    // Now I output those corridors
+    for(int i = 0; i < (int)corridor.size(); i++) {
+        ROS_WARN("Corridor %d time %15.10f %f %f %f %f %f %f", i, corridor[i].t, 
+            corridor[i].box[0].first, corridor[i].box[0].second, 
+            corridor[i].box[1].first, corridor[i].box[1].second,
+            corridor[i].box[2].first, corridor[i].box[2].second);
+    }
+
 
     MatrixXd pos = MatrixXd::Zero(2,3);
     MatrixXd vel = MatrixXd::Zero(2,3);

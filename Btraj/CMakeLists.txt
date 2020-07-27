@@ -65,3 +65,15 @@ add_executable ( odom_generator src/odom_generator.cpp )
 target_link_libraries( odom_generator
                         ${catkin_LIBRARIES}
 )
+
+add_executable (
+    field_server 
+    src/field_server.cpp 
+    src/a_star.cpp
+    third_party/fast_methods/console/console.cpp
+    third_party/fast_methods/fm/fmdata/fmcell.cpp
+    third_party/fast_methods/ndgridmap/cell.cpp
+)
+target_link_libraries(field_server
+                        ${catkin_LIBRARIES}
+)

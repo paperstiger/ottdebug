@@ -1,0 +1,38 @@
+<launch>
+
+<arg name="map_size_x" default="50.0"/>
+<arg name="map_size_y" default="50.0"/>
+<arg name="map_size_z" default=" 5.0"/>
+
+<arg name="init_x" default="20.0"/>
+<arg name="init_y" default="-1.0"/>
+<arg name="init_z" default="  1.5"/>
+
+<arg name="goal_x" default="10.0"/>
+<arg name="goal_y" default="-1.0"/>
+<arg name="goal_z" default="  1.5"/>
+
+
+  <node pkg ="bezier_planer" name ="field_server" type ="field_server" output = "screen">    
+      <param name="init_state_x"   value="$(arg init_x)"/>
+      <param name="init_state_y"   value="$(arg init_y)"/>
+      <param name="init_state_z"   value="$(arg init_z)"/>
+      <param name="goal_state_x"   value="$(arg goal_x)"/>
+      <param name="goal_state_y"   value="$(arg goal_y)"/>
+      <param name="goal_state_z"   value="$(arg goal_z)"/>
+      <param name="x_size"     value="$(arg map_size_x)" />
+      <param name="y_size"     value="$(arg map_size_y)" />
+      <param name="z_size"     value="$(arg map_size_z)" />       
+      <param name="resolution" value="0.2"/>        
+      <param name="pcdfnm"   value="/home/motion/Downloads/fr_campus_scaled_ds_5.dat"/>
+      <param name="vis_traj_width" value="0.15" />
+      <param name="is_proj_cube" value="false" />
+      <param name="loop_rate" value="1" />
+      <param name="planning/max_vel" value="1." />
+      <param name="planning/max_acc" value="1." />
+
+  </node>
+
+  <node name="rvizvisualisation" pkg="rviz" type="rviz" output="log" args="-d $(find bezier_planer)/launch/rviz_config/ezsim.rviz" />
+
+</launch>

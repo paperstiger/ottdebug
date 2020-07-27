@@ -59,7 +59,7 @@ namespace sdf_tools
 
     class CollisionMapGrid
     {
-    protected:
+    public:
 
         inline static std_msgs::ColorRGBA GenerateComponentColor(const uint32_t component, const float alpha=1.0f)
         {
