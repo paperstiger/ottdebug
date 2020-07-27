@@ -77,3 +77,7 @@ add_executable (
 target_link_libraries(field_server
                         ${catkin_LIBRARIES}
 )
+
+catkin_install_python(PROGRAMS src/receive_corridor.py
+    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)

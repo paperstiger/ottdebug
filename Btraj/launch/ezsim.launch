@@ -33,6 +33,8 @@
 
   </node>
 
+  <node name="pycorridor" pkg="bezier_planer" type="receive_corridor.py" output="screen"/>
+
   <node name="rvizvisualisation" pkg="rviz" type="rviz" output="log" args="-d $(find bezier_planer)/launch/rviz_config/ezsim.rviz" />
 
 </launch>

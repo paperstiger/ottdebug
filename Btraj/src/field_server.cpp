@@ -32,6 +32,10 @@ In this file, I read a point cloud data, generate the collision map and run some
 #include "quadrotor_msgs/PositionCommand.h"
 #include "quadrotor_msgs/PolynomialTrajectory.h"
 
+#include "std_msgs/MultiArrayLayout.h"
+#include "std_msgs/MultiArrayDimension.h"
+#include "std_msgs/Float64MultiArray.h"
+
 using namespace std;
 using namespace Eigen;
 using namespace sdf_tools;
@@ -69,6 +73,7 @@ bool _has_traj, _is_emerg;
 
 // ros related
 ros::Publisher _fm_path_vis_pub, _local_map_vis_pub, _inf_map_vis_pub, _corridor_vis_pub, _traj_vis_pub, _grid_path_vis_pub, _nodes_vis_pub, _traj_pub, _checkTraj_vis_pub, _stopTraj_vis_pub;
+ros::Publisher _corridor_pub;
 
 void sortPath(vector<Vector3d> & path_coord, vector<double> & time);
 void timeAllocation(vector<Cube> & corridor, vector<double> time);
@@ -364,6 +369,22 @@ void find_path_fmm(){
     }
    visCorridor(corridor);
    delete fm_solver;
+
+   // start publishing corridors
+   std_msgs::Float64MultiArray array;
+   array.data.clear();
+   for(int i = 0; i < 3; i++)
+    array.data.push_back(_start_pt(i));
+   for(int i = 0; i < 3; i++)
+    array.data.push_back(_end_pt(i));
+   for(int i = 0; i < (int)corridor.size(); i++) {
+       array.data.push_back(corridor[i].t);
+       for(int j = 0; j < 3; j++) {
+           array.data.push_back(corridor[i].box[j].first);
+           array.data.push_back(corridor[i].box[j].second);
+       }
+   }
+   _corridor_pub.publish(array);
 }
 
 
@@ -524,24 +545,16 @@ double velMapping(double d, double max_v)
     return vel * max_v;
 }
 
-void rcvStartCallback(const geometry_msgs::PoseStamped & msg)
-{    
-    ROS_WARN("[Odom Generator] arbitraily change the start");
-    _start_pt(0) = msg.pose.position.x;
-    _start_pt(1) = msg.pose.position.y;
-    _start_pt(2) = msg.pose.position.z;
-    _start_vel.setZero();
-    _start_acc.setZero();
-
+void publish_start(){
     meshROS1.header.frame_id = "world";
     meshROS1.header.stamp = ros::Time::now(); 
     meshROS1.ns = "mesh";
     meshROS1.id = 0;
     meshROS1.type = visualization_msgs::Marker::MESH_RESOURCE;
     meshROS1.action = visualization_msgs::Marker::ADD;
-    meshROS1.pose.position.x = msg.pose.position.x;
-    meshROS1.pose.position.y = msg.pose.position.y;
-    meshROS1.pose.position.z = msg.pose.position.z;
+    meshROS1.pose.position.x = _start_pt(0);
+    meshROS1.pose.position.y = _start_pt(1);
+    meshROS1.pose.position.z = _start_pt(2);
     double scale = 2;
     meshROS1.scale.x = scale;
     meshROS1.scale.y = scale;
@@ -552,26 +565,30 @@ void rcvStartCallback(const geometry_msgs::PoseStamped & msg)
     meshROS1.color.b = 0;
     meshROS1.mesh_resource = mesh_resource;
     meshPub1.publish(meshROS1);                                                  
+}
 
+void rcvStartCallback(const geometry_msgs::PoseStamped & msg)
+{    
+    ROS_WARN("[Odom Generator] arbitraily change the start");
+    _start_pt(0) = msg.pose.position.x;
+    _start_pt(1) = msg.pose.position.y;
+    _start_pt(2) = msg.pose.position.z;
+    _start_vel.setZero();
+    _start_acc.setZero();
+    publish_start();
     find_path_fmm();  // whenever start is changed
 }
 
-void rcvGoalCallback(const geometry_msgs::PoseStamped & msg)
-{    
-    ROS_WARN("[Odom Generator] arbitraily change the start");
-    _end_pt(0) = msg.pose.position.x;
-    _end_pt(1) = msg.pose.position.y;
-    _end_pt(2) = msg.pose.position.z;
-
+void publish_goal() {
     meshROS2.header.frame_id = "world";
     meshROS2.header.stamp = ros::Time::now(); 
     meshROS2.ns = "mesh";
     meshROS2.id = 0;
     meshROS2.type = visualization_msgs::Marker::MESH_RESOURCE;
     meshROS2.action = visualization_msgs::Marker::ADD;
-    meshROS2.pose.position.x = msg.pose.position.x;
-    meshROS2.pose.position.y = msg.pose.position.y;
-    meshROS2.pose.position.z = msg.pose.position.z;
+    meshROS2.pose.position.x = _end_pt(0);
+    meshROS2.pose.position.y = _end_pt(1);
+    meshROS2.pose.position.z = _end_pt(2);
     double scale = 2;
     meshROS2.scale.x = scale;
     meshROS2.scale.y = scale;
@@ -582,7 +599,15 @@ void rcvGoalCallback(const geometry_msgs::PoseStamped & msg)
     meshROS2.color.b = 0;
     meshROS2.mesh_resource = mesh_resource;
     meshPub2.publish(meshROS2);                                                  
+}
 
+void rcvGoalCallback(const geometry_msgs::PoseStamped & msg)
+{    
+    ROS_WARN("[Odom Generator] arbitraily change the start");
+    _end_pt(0) = msg.pose.position.x;
+    _end_pt(1) = msg.pose.position.y;
+    _end_pt(2) = msg.pose.position.z;
+    publish_goal();
     find_path_fmm(); // whenever goal is changed
 }
 
@@ -618,10 +643,11 @@ int main (int argc, char** argv) {
     _traj_vis_pub      = n.advertise<visualization_msgs::Marker>("trajectory_vis", 1);    
     _corridor_vis_pub  = n.advertise<visualization_msgs::MarkerArray>("corridor_vis", 1);
     _fm_path_vis_pub   = n.advertise<visualization_msgs::MarkerArray>("path_vis", 1);
+    _corridor_pub = n.advertise<std_msgs::Float64MultiArray>("corridors", 100);
 
-    meshPub1   = n.advertise<visualization_msgs::Marker>("start_robot",               100, true);  
-    meshPub2   = n.advertise<visualization_msgs::Marker>("goal_robot",               100, true);  
-   
+    meshPub1   = n.advertise<visualization_msgs::Marker>("start_robot", 100, true);  
+    meshPub2   = n.advertise<visualization_msgs::Marker>("goal_robot", 100, true);  
+
    n.param("mesh_resource", mesh_resource, std::string("package://odom_visualization/meshes/hummingbird.mesh"));
 
    n.param("init_state_x", _start_pt(0),       0.0);
@@ -660,6 +686,9 @@ int main (int argc, char** argv) {
    collision_map = new CollisionMapGrid(origin_transform, "world", _resolution, _x_size, _y_size, _z_size, _free_cell);
 
    ReadMapDataset();
+
+    publish_start();
+    publish_goal();
 
    double lrate = 1;
    n.param("loop_rate",   lrate, 1.);
