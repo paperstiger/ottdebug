@@ -78,6 +78,13 @@ double velMapping(double d, double max_v);
 Cube generateCube( Vector3d pt) ;
 pair<Cube, bool> inflateCube(Cube cube, Cube lstcube);
 
+// for visualization of start and goal
+static  string mesh_resource;
+ros::Publisher meshPub1;
+visualization_msgs::Marker meshROS1;
+ros::Publisher meshPub2;
+visualization_msgs::Marker meshROS2;
+
 void ReadMapDataset() 
 {
    // In this function, I read one downloaded dataset and show it here... It may be messy.
@@ -526,6 +533,26 @@ void rcvStartCallback(const geometry_msgs::PoseStamped & msg)
     _start_vel.setZero();
     _start_acc.setZero();
 
+    meshROS1.header.frame_id = "world";
+    meshROS1.header.stamp = ros::Time::now(); 
+    meshROS1.ns = "mesh";
+    meshROS1.id = 0;
+    meshROS1.type = visualization_msgs::Marker::MESH_RESOURCE;
+    meshROS1.action = visualization_msgs::Marker::ADD;
+    meshROS1.pose.position.x = msg.pose.position.x;
+    meshROS1.pose.position.y = msg.pose.position.y;
+    meshROS1.pose.position.z = msg.pose.position.z;
+    double scale = 2;
+    meshROS1.scale.x = scale;
+    meshROS1.scale.y = scale;
+    meshROS1.scale.z = scale;
+    meshROS1.color.a = 1;
+    meshROS1.color.r = 1;
+    meshROS1.color.g = 0;
+    meshROS1.color.b = 0;
+    meshROS1.mesh_resource = mesh_resource;
+    meshPub1.publish(meshROS1);                                                  
+
     find_path_fmm();  // whenever start is changed
 }
 
@@ -535,6 +562,26 @@ void rcvGoalCallback(const geometry_msgs::PoseStamped & msg)
     _end_pt(0) = msg.pose.position.x;
     _end_pt(1) = msg.pose.position.y;
     _end_pt(2) = msg.pose.position.z;
+
+    meshROS2.header.frame_id = "world";
+    meshROS2.header.stamp = ros::Time::now(); 
+    meshROS2.ns = "mesh";
+    meshROS2.id = 0;
+    meshROS2.type = visualization_msgs::Marker::MESH_RESOURCE;
+    meshROS2.action = visualization_msgs::Marker::ADD;
+    meshROS2.pose.position.x = msg.pose.position.x;
+    meshROS2.pose.position.y = msg.pose.position.y;
+    meshROS2.pose.position.z = msg.pose.position.z;
+    double scale = 2;
+    meshROS2.scale.x = scale;
+    meshROS2.scale.y = scale;
+    meshROS2.scale.z = scale;
+    meshROS2.color.a = 1;
+    meshROS2.color.r = 0;
+    meshROS2.color.g = 0;
+    meshROS2.color.b = 0;
+    meshROS2.mesh_resource = mesh_resource;
+    meshPub2.publish(meshROS2);                                                  
 
     find_path_fmm(); // whenever goal is changed
 }
@@ -571,7 +618,11 @@ int main (int argc, char** argv) {
     _traj_vis_pub      = n.advertise<visualization_msgs::Marker>("trajectory_vis", 1);    
     _corridor_vis_pub  = n.advertise<visualization_msgs::MarkerArray>("corridor_vis", 1);
     _fm_path_vis_pub   = n.advertise<visualization_msgs::MarkerArray>("path_vis", 1);
+
+    meshPub1   = n.advertise<visualization_msgs::Marker>("start_robot",               100, true);  
+    meshPub2   = n.advertise<visualization_msgs::Marker>("goal_robot",               100, true);  
    
+   n.param("mesh_resource", mesh_resource, std::string("package://odom_visualization/meshes/hummingbird.mesh"));
 
    n.param("init_state_x", _start_pt(0),       0.0);
    n.param("init_state_y", _start_pt(1),       0.0);

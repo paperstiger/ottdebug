@@ -174,8 +174,16 @@ Visualization Manager:
       Value: true
     - Class: rviz/Marker
       Enabled: true
-      Marker Topic: /odom_visualization_ukf_/robot
-      Name: Robot
+      Marker Topic: /field_server/start_robot
+      Name: StartRobot
+      Namespaces:
+        mesh: true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /field_server/goal_robot
+      Name: GoalRobot
       Namespaces:
         mesh: true
       Queue Size: 100
